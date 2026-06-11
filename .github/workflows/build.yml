@@ -18,7 +18,7 @@ jobs:
       - name: Setup Build Environment
         run: |
           sudo apt-get update
-          sudo apt-get install -y bc build-essential libncurses5-dev libssl-dev xy-utils lzma xo-utils liblz4-tool git ccache
+          sudo apt-get install -y bc build-essential flex bison ccache libncurses-dev libssl-dev xz-utils liblz4-tool git
 
       - name: Download Kernel Source & Toolchain
         run: |
@@ -34,7 +34,6 @@ jobs:
         run: |
           export PATH=$(pwd)/clang/clang-stable/bin:$PATH
           cd kernel
-          # Скрипт сам автоматически найдет правильный файл конфигурации vili внутри папки arch/arm64/configs/
           CONF=$(find arch/arm64/configs/ -name "*vili*" | head -n 1 | sed 's|arch/arm64/configs/||')
           make O=out ARCH=arm64 $CONF
           make O=out ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-android- -j$(nproc)
