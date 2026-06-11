@@ -1,0 +1,29 @@
+name: Build KernelSU Vili
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Maximize Space
+        uses: easimon/maximize-build-space@master
+        with:
+          root-reserve-mb: 8192
+          temp-reserve-mb: 2048
+          remove-dotnet: 'true'
+          remove-android: 'true'
+          remove-haskell: 'true'
+
+      - name: Android Kernel Build Action
+        uses: dabao1955/kernel_build_action@main
+        with:
+          kernel-url: https://github.com/MiCode/Xiaomi_Kernel_OpenSource
+          kernel-branch: vili-r-oss
+          config: vili_user_defconfig
+          arch: arm64
+          android-version: 11
+          toolchain-flavor: clang
+          compiler: aosp-clang
+          enable-kernelsu: true
+          kernelsu-version: main
