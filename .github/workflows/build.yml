@@ -20,10 +20,7 @@ jobs:
         with:
           kernel-url: https://github.com/MiCode/Xiaomi_Kernel_OpenSource
           kernel-branch: vili-r-oss
-          config: vili_user_defconfig
+          config: vili_defconfig
           arch: arm64
           android-version: 11
-          toolchain-flavor: clang
-          compiler: aosp-clang
-          enable-kernelsu: true
-          kernelsu-version: main
+          ksu: true
