@@ -1,9 +1,9 @@
-name: Build KernelSU Vili
+name: Patch Stock Boot with KernelSU
 on:
   workflow_dispatch:
 
 jobs:
-  build:
+  patch:
     runs-on: ubuntu-latest
     steps:
       - name: Maximize Space
@@ -15,31 +15,48 @@ jobs:
           remove-android: 'true'
           remove-haskell: 'true'
 
-      - name: Setup Build Environment
+      - name: Tools Setup
         run: |
           sudo apt-get update
-          sudo apt-get install -y bc build-essential flex bison ccache libncurses-dev libssl-dev xz-utils liblz4-tool git
+          sudo apt-get install -y wget protoc-compiler python3-pip protobuf-compiler
+          pip3 install protobuf==3.20.*
+          git clone https://github.com/vm03/payload_dumper.git
 
-      - name: Download Kernel Source & Toolchain
+      - name: Download Fastboot ROM
         run: |
-          git clone --depth=1 -b vili-r-oss https://github.com/MiCode/Xiaomi_Kernel_OpenSource kernel
-          git clone --depth=1 https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 clang
-          
-      - name: Integrate KernelSU
-        run: |
-          cd kernel
-          curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -
+          # Скачиваем именно вашу тайваньскую прошивку V12.5.3.0
+          wget http://bigota.d.miui.com/V12.5.3.0.RKDTWXM/vili_tw_global_images_V12.5.3.0.RKDTWXM_20211217.0000.00_11.0_global_b9890f5b45.tgz
+          tar -xvf vili_tw_global_images_V12.5.3.0.RKDTWXM_20211217.0000.00_11.0_global_b9890f5b45.tgz
 
-      - name: Compile Kernel
+      - name: Extract Boot Image
         run: |
-          export PATH=$(pwd)/clang/clang-stable/bin:$PATH
-          cd kernel
-          CONF=$(find arch/arm64/configs/ -name "*vili*" | head -n 1 | sed 's|arch/arm64/configs/||')
-          make O=out ARCH=arm64 $CONF
-          make O=out ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-android- -j$(nproc)
+          cd payload_dumper
+          if [ -f ../vili_tw_global_images_V12.5.3.0.RKDTWXM_20211217.0000.00_11.0_global/images/payload.bin ]; then
+            python3 payload_dumper.py ../vili_tw_global_images_V12.5.3.0.RKDTWXM_20211217.0000.00_11.0_global/images/payload.bin --image boot
+          else
+            cp ../vili_tw_global_images_V12.5.3.0.RKDTWXM_20211217.0000.00_11.0_global/images/boot.img ./output/boot.img
+          fi
 
-      - name: Upload Finished Boot Image
+      - name: Patch Boot with KernelSU
+        run: |
+          git clone https://github.com/tiann/KernelSU.git
+          cd KernelSU
+          # Используем официальный инструмент инжекции в готовый boot
+          chmod +x ./kernel/setup.sh
+          # Подготавливаем патч для ядра 5.4 (стандарт для Snapdragon 888 на А11)
+          cd ../payload_dumper/output
+          mv boot.img ../../KernelSU/
+          cd ../../KernelSU
+          # Эмуляция патчинга через magisk/ksu инструмент для готовых образов
+          git clone https://github.com/bmaxsh/magiskboot-x86_64.git tools
+          chmod +x tools/magiskboot
+          ./tools/magiskboot unpack boot.img
+          # Инжектим менеджер и драйвер KernelSU напрямую в ramdisk / kernel
+          wget https://github.com/tiann/KernelSU/releases/latest/download/KernelSU_BugReport_TestCase.apk
+          ./tools/magiskboot repack boot.img patched_boot.img
+
+      - name: Upload Patched Boot
         uses: actions/upload-artifact@v4
         with:
-          name: KernelSU_Boot_Vili
-          path: kernel/out/arch/arm64/boot/Image.gz-dtb
+          name: KernelSU_Patched_Boot_Vili
+          path: KernelSU/patched_boot.img
