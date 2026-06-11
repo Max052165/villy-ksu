@@ -15,12 +15,32 @@ jobs:
           remove-android: 'true'
           remove-haskell: 'true'
 
-      - name: Android Kernel Build Action
-        uses: dabao1955/kernel_build_action@main
+      - name: Setup Build Environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc build-essential libncurses5-dev libssl-dev xy-utils lzma xo-utils liblz4-tool git ccache
+
+      - name: Download Kernel Source & Toolchain
+        run: |
+          git clone --depth=1 -b vili-r-oss https://github.com/MiCode/Xiaomi_Kernel_OpenSource kernel
+          git clone --depth=1 https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 clang
+          
+      - name: Integrate KernelSU
+        run: |
+          cd kernel
+          curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -
+
+      - name: Compile Kernel
+        run: |
+          export PATH=$(pwd)/clang/clang-stable/bin:$PATH
+          cd kernel
+          # Скрипт сам автоматически найдет правильный файл конфигурации vili внутри папки arch/arm64/configs/
+          CONF=$(find arch/arm64/configs/ -name "*vili*" | head -n 1 | sed 's|arch/arm64/configs/||')
+          make O=out ARCH=arm64 $CONF
+          make O=out ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-android- -j$(nproc)
+
+      - name: Upload Finished Boot Image
+        uses: actions/upload-artifact@v4
         with:
-          kernel-url: https://github.com/MiCode/Xiaomi_Kernel_OpenSource
-          kernel-branch: vili-r-oss
-          config: vili_defconfig
-          arch: arm64
-          android-version: 11
-          ksu: true
+          name: KernelSU_Boot_Vili
+          path: kernel/out/arch/arm64/boot/Image.gz-dtb
